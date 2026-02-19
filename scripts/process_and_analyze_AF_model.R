@@ -370,6 +370,6 @@ if (n_con_int == 0) {
 
 print(df_towrite)
 
-print(paste0(OUTPATH, "/", CODE, "_probability_scores.csv"))
-write.csv(df_towrite, paste0(getwd(), "/", OUTPATH, "/", CODE, "_probability_scores.csv"),
-          quote = F, row.names = F)
+print(file.path(OUTPATH, paste0(CODE, "_probability_scores.csv")))
+write.csv(df_towrite, file.path(OUTPATH, paste0(CODE, "_probability_scores.csv")),
+          quote = FALSE, row.names = FALSE)
