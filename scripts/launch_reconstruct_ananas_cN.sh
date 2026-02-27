@@ -1,11 +1,9 @@
 #!/bin/bash
 
-
 # Path to the script
 SCRIPT=$(readlink -f $0)
 SCRIPTPATH=`dirname $SCRIPT`
 echo -n "path to script: $SCRIPTPATH"
-
 
 pdb=$1
 outpath=$2
@@ -17,6 +15,8 @@ fi
 
 id=$(basename $pdb)
 outfile=$outpath/${id%.pdb}_all_csym.dat
+c2_rmsd_cutoff=4
+c2_clash_cutoff=200
 
 declare -a listrmsd=()
 
@@ -27,42 +27,29 @@ echo "symmetry av.rmsd clashscore" > $outfile
 
 for sym in 2 3 4 5 6 7 8 9 10 11 12
 do
-    rmsd=`$ANANAS $pdb c$sym -C 100 | grep "Average RMSD" | awk '{ print $4 }' `
-    lower=`awk -v a=$rmsd 'BEGIN { print (a <= 7) ? "YES" : "NO" }'`
+    rmsd="NA"
     clashscore="NA"
-    echo -e "\n*************************\nrmsd : $rmsd\n*************************\n"
+    rmsd=`$ANANAS $pdb c$sym -C 100 | grep "Average RMSD" | awk '{ print $4 }' `
 
-    if [ $lower == "YES" ] && [ $sym == 2 ]
+    do_score=`awk -v a=$rmsd -v rcut=$c2_rmsd_cutoff 'BEGIN { print (a<=rcut) ? "YES" : "NO" }'`
+
+    if [ "$do_score" == "YES" ]
     then
-        echo -e "\n*************************\nsymmetry c$sym has rmsd below 2.5A: $rmsd\n*************************\n"
-        # The model has a C2 symmetry, no need to test other symmetries
-        echo c$sym $rmsd NA >> $outfile
-        break
-    
-    # Is the rmsd below 2.5A threshold?
-    elif [ $lower == "YES" ]
-    then
-        echo -e "\n*************************\nsymmetry c$sym has rmsd below 2.5A: $rmsd\n*************************\n"
-        
-        # check if the exact same rmsd is in values already computed. 
-        # if so it means that we are just testing a multiple of a smaller symmetry 
-        # (for ex if C3 real symmetry, the C6 and C9 have same rmsd but with clashes).
-        if [[ ! " ${listrmsd[*]} " =~ " ${rmsd:0:6} " ]]
-        then
-            echo "symmetry c$sym has rmsd below 2.5A: $rmsd"
-            
-            # step 1: reconstruct the pdb of this specific symmetry
-            $ANANAS $pdb c$sym --symmetrize $outpath/${id%.pdb}_c${sym}.pdb
-            
-            # step 2: assess clash score with phenix.clashscore
-            clashscore=`$PHENIX_CLASHSCORE $outpath/${id%.pdb}_c${sym}.pdb | grep "clashscore" | cut -d'=' -f2`
-            
-            rm $outpath/${id%.pdb}_c${sym}.pdb # removing symmetrized pdb after evaluating clashes
-        fi
+        $ANANAS $pdb c$sym --symmetrize $outpath/${id%.pdb}_c${sym}.pdb
+        clashscore=`$PHENIX_CLASHSCORE model=$outpath/${id%.pdb}_c${sym}.pdb | grep -i "clashscore" | head -n1 | sed -E 's/.*=[[:space:]]*//'`
+        echo -e "\n*************************\nrmsd : $rmsd\n*************************\n"
+        echo -e "\n*************************\nclashscore : $clashscore\n*************************\n"
+        rm -f $outpath/${id%.pdb}_c${sym}.pdb
     fi
-    
-    # append rmsd to the array
-    listrmsd+=(${rmsd:0:6})
 
     echo c$sym $rmsd $clashscore >> $outfile
+
+    if [ $sym == 2 ]
+    then
+        is_c2_ok=`awk -v a=$rmsd -v cs=$clashscore -v rcut=$c2_rmsd_cutoff -v ccut=$c2_clash_cutoff 'BEGIN { print ((a<=rcut && cs!="NA" && cs<=ccut) ? "YES" : "NO") }'`
+        if [ "$is_c2_ok" == "YES" ]
+        then
+            break
+        fi
+    fi
 done
