@@ -61,17 +61,19 @@ CONTACTSALL = CONTACTS # intra and inter-chains contacts
 CONTACTS = CONTACTS[CONTACTS$chain1 != CONTACTS$chain2,] # we only check inter-chains contacts
 
 if (nrow(CONTACTS) > 0) {
-  n_con_int = length(c(unique(CONTACTS$res1), unique(CONTACTS$res2)))
-  Nclash_ct = sum(CONTACTS$dmin < 2)
-  Nclash_ct_int = sum(CONTACTS$dmin < 2 & (CONTACTS$chain1 != CONTACTS$chain2))
-  Nclash_res = length(unique(CONTACTS$res1[CONTACTS$dmin < 2]))
-  Nclash_res_int = length(unique(CONTACTS$res1[CONTACTS$dmin < 2 & (CONTACTS$chain1 != CONTACTS$chain2)]))
+  N_res_int = length(unique(c(CONTACTS$resid1, CONTACTS$resid2)))
+  N_ct_int = nrow(CONTACTS)
+  Nclash_ct_int = sum(CONTACTS$dmin < 2)
+  clash_idx_int = CONTACTS$dmin < 2
+  clash_idx = CONTACTSALL$dmin < 2
+  Nclash_res_int = length(unique(c(CONTACTS$resid1[clash_idx_int], CONTACTS$resid2[clash_idx_int])))
+  Nclash_res = length(unique(c(CONTACTSALL$resid1[clash_idx], CONTACTSALL$resid2[clash_idx])))
 } else { ## Case no interface
-  n_con_int = 0
-  Nclash_ct = 0
+  N_res_int = 0
+  N_ct_int = 0
   Nclash_ct_int = 0
-  Nclash_res = 0
   Nclash_res_int = 0
+  Nclash_res = 0
 }
 
 #################### READ PDB FILE ########################
@@ -111,7 +113,11 @@ CTmat[, index.removed75] = 0
 CTgraph = graph_from_adjacency_matrix(CTmat, mode = "undirected")
 
 ### Get the residue indexes of the largest component
-all.comp = clusters(CTgraph)
+if ("components" %in% ls("package:igraph")) {
+  all.comp = components(CTgraph)
+} else {
+  all.comp = clusters(CTgraph)
+}
 largest.comp = all.comp$membership[all.comp$membership == which.max(all.comp$csize)]
 res.to.keep = names(largest.comp)
 res.to.update= as.data.frame(t(data.frame(str_split(res.to.keep, "_"))))
@@ -146,7 +152,6 @@ isA = res_diso3[,2]=="A"
 res.diso3.A = paste0(res_diso3[isA,1],res_diso3[isA,2])
 res.diso3.B = paste0(res_diso3[!isA,1],res_diso3[!isA,2])
 
-n_res_in_contact = length( unique(c(res_in_contact[,1],res_in_contact[,2])))
 
 res_in_contact_diso1 = 
   CONTACTS$res1 %in% res_diso1$resnum[res_diso1$chain==CONTACTS$chain1[1]] &
@@ -326,14 +331,9 @@ writeLines(pdbnodiso3, con = paste0(OUTPATH, "/", CODE, "_nodiso3.pdb"))
 write.csv(data.all.diso, paste0(OUTPATH, "/", CODE, "_diso_info.csv"),
           quote = F, row.names = F)
 
-cat("n_con_int: ", is.na(n_con_int), "\n")
-
-cat("clashes: ", Nclash_res_int/length(n_con_int), "\n")
-cat("clashes: ", Nclash_res/nrow(pdb_dataframe_plddt), "\n")
-
 
 ## 3- A file with X column for all the PAE score etc
-if (n_con_int == 0) {
+if (N_ct_int == 0) {
   print("The model does not present any interface, cannot be a homomer.dimer_proba set to 0\n")
   df_towrite = data.frame(PAE1 = PAE1,
                           PAE2 = PAE2,
@@ -345,7 +345,7 @@ if (n_con_int == 0) {
                           dimer_proba_pae4_con3 = 0, 
                           dimer_proba = 0)
   
-} else if ((Nclash_res_int/n_con_int > 0.1) | (Nclash_res/nrow(pdb_dataframe_plddt)>0.1)) {
+} else if ((Nclash_ct_int/N_ct_int > 0.1) | (Nclash_res/nrow(pdb_dataframe_plddt)>0.05)) {
   print("The model presents too many clashes, cannot be a homomer.dimer_proba set to 0\n")
   df_towrite = data.frame(PAE1 = PAE1,
                           PAE2 = PAE2,
