@@ -22,6 +22,8 @@ best_sym=0
 best_clash="NA"
 c12_rmsd="NA"
 
+listrmsd=()
+
 echo $id
 echo $outpath
 
@@ -33,6 +35,18 @@ do
     clashscore="NA"
 
     rmsd=`$ANANAS $pdb c$sym -C 100 | grep "Average RMSD" | awk '{ print $4 }' `
+
+    if [[ "$rmsd" != "NA" && -n "$rmsd" ]]
+    then
+        rmsd_short=$(printf "%.3f" "$rmsd")
+        if [[ " ${listrmsd[*]} " =~ " ${rmsd_short} " ]]
+        then
+            echo c$sym $rmsd $clashscore >> $outfile
+            continue
+        else
+            listrmsd+=("$rmsd_short")
+        fi
+    fi
 
     # symmetry-specific RMSD cutoff
     if [ "$sym" -eq 2 ] || [ "$sym" -eq 3 ]; then
