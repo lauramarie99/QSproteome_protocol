@@ -83,7 +83,7 @@ do
             break
         fi
     else
-        is_better=$(awk -v a="$rmsd" -v b="$best_rmsd" -v c="$clashscore" -v ccut="$c2_clash_cutoff" 'BEGIN { if (a != "" && a != "NA" && c != "" && c != "NA" && a < b && c < ccut) print "YES"; else print "NO" }')
+        is_better=$(awk -v a="$rmsd" -v b="$best_rmsd" 'BEGIN { if (a != "" && a != "NA" && a < b) print "YES"; else print "NO" }')
         if [ "$is_better" = "YES" ]
         then
             best_sym=$sym
@@ -123,13 +123,5 @@ then
 
         echo c$sym $rmsd $clashscore >> "$outfile"
 
-        is_better_than_c12=$(awk -v a="$rmsd" -v b="$c12_rmsd" -v c="$clashscore" -v ccut="$c2_clash_cutoff" 'BEGIN { if (a != "" && a != "NA" && c != "" && c != "NA" && a < b && c < ccut) print "YES"; else print "NO" }')
-
-        if [ "$is_better_than_c12" = "YES" ]
-        then
-            best_sym=$sym
-            best_rmsd=$rmsd
-            best_clash=$clashscore
-        fi
     done
 fi
