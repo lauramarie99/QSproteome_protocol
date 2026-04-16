@@ -80,13 +80,31 @@ my $CONTACTFILE = "$OUTPATH/$CODE"."_FULL_CONTACT.txt";
 #print "CONTACTFILE: $CONTACTFILE\n";
 #print "OUTPATH: $OUTPATH\n";
 system("Rscript $script_dir/process_and_analyze_AF_model.R $PDBFILE $JSON $CONTACTFILE $OUTPATH");
+my $r_cmd = "Rscript $script_dir/process_and_analyze_AF_model.R $PDBFILE $JSON $CONTACTFILE $OUTPATH 2>&1";
+my $r_output = `$r_cmd`;
+
+if ($? != 0) {
+    die "Error running process_and_analyze_AF_model.R:\n$r_output\n";
+}
+my $final_score;
+if ($r_output =~ /Final score:\s*([0-9]*\.?[0-9]+)/) {
+    $final_score = $1;
+    print "Parsed final score: $final_score\n";
+} else {
+    die "Could not parse 'Final score' from R output:\n$r_output\n";
+}
 
 # Test if the option is specified
-if ($reconstruct) {
-    print "The user specified the --reconstruct option.\n";
-    system("bash $script_dir/launch_reconstruct_ananas_cN.sh $OUTPATH/${CODE}_nodiso3.pdb $OUTPATH");
-    #print("$OUTPATH/${CODE}_nodiso3_all_csym.dat\n");
-    system("Rscript $script_dir/select_best_rmsd_clashes_byfile.R $OUTPATH/${CODE}_nodiso3_all_csym.dat");
+if ($reconstruct){
+    if (defined $final_score && $final_score >= 0.5){
+        print "The user specified the --reconstruct option.\n";
+        system("bash $script_dir/launch_reconstruct_ananas_cN.sh $OUTPATH/${CODE}_nodiso3.pdb $OUTPATH");
+        #print("$OUTPATH/${CODE}_nodiso3_all_csym.dat\n");
+        system("Rscript $script_dir/select_best_rmsd_clashes_byfile.R $OUTPATH/${CODE}_nodiso3_all_csym.dat");
+    }
+    else {
+        print "The user specified the --reconstruct option, but the final score is below 0.5 => full size complex not reconstructed\n";
+    }
 } else {
     print "The user did not specify the --reconstruct option => full size complex not reconstructed\n";
 }
