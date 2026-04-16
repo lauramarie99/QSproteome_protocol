@@ -110,7 +110,7 @@ CTmat[index.removed75, ] = 0
 CTmat[, index.removed75] = 0
 
 # ### Now transforms the CT matrix into a graph (see my R course from last year)
-CTgraph = graph_from_adjacency_matrix(CTmat, mode = "undirected")
+CTgraph = graph_from_adjacency_matrix(CTmat, mode = "max")
 
 ### Get the residue indexes of the largest component
 if ("components" %in% ls("package:igraph")) {
@@ -306,26 +306,61 @@ cat("dimer_proba_pae3` =",round(proba.pae3,5),",
     `dimer_proba_pae4_con3`=",round(proba.pae4.con3,5), ", 
     `dimer_proba_max`=",round(proba.all,5), "\n")
 
+# Helper function
+is_empty <- function(x) {
+  is.null(x) || length(x) == 0
+}
+empty_models <- c()
 #### THEN we write everything:
 ## 1- Write pdb file model nodiso1/2/3
 res_torm_diso1 = data.all.diso[data.all.diso$nodiso1 == F,c("resnum", "chain")]
 res_torm_diso1 = paste(res_torm_diso1$chain, res_torm_diso1$resnum, sep="")
 pdbnodiso1 = unlist(trim_pdb(pdb_dataframe, res_torm_diso1))
 pdbnodiso1 <- sapply(pdbnodiso1, function(x) gsub("\n$", "", x))
-writeLines(pdbnodiso1, con = paste0(OUTPATH, "/", CODE, "_nodiso1.pdb"))
-
+if (is_empty(pdbnodiso1)) {
+  empty_models <- c(empty_models, "nodiso1")
+}
+if (!is_empty(pdbnodiso1) && is.character(pdbnodiso1)) {
+  writeLines(pdbnodiso1, con = paste0(OUTPATH, "/", CODE, "_nodiso1.pdb"))
+}
 res_torm_diso2 = data.all.diso[data.all.diso$nodiso2 == F,c("resnum", "chain")]
 res_torm_diso2 = paste(res_torm_diso2$chain, res_torm_diso2$resnum, sep="")
 pdbnodiso2 = unlist(trim_pdb(pdb_dataframe, res_torm_diso2))
 pdbnodiso2 <- sapply(pdbnodiso2, function(x) gsub("\n$", "", x))
-writeLines(pdbnodiso2, con = paste0(OUTPATH, "/", CODE, "_nodiso2.pdb"))
+if (is_empty(pdbnodiso2)) {
+  empty_models <- c(empty_models, "nodiso2")
+}
+if (!is_empty(pdbnodiso2) && is.character(pdbnodiso2)) {
+  writeLines(pdbnodiso2, con = paste0(OUTPATH, "/", CODE, "_nodiso2.pdb"))
+}
 
 res_torm_diso3 = data.all.diso[data.all.diso$nodiso3 == F,c("resnum", "chain")]
 res_torm_diso3 = paste(res_torm_diso3$chain, res_torm_diso3$resnum, sep="")
 pdbnodiso3 = unlist(trim_pdb(pdb_dataframe, res_torm_diso3))
 pdbnodiso3 <- sapply(pdbnodiso3, function(x) gsub("\n$", "", x))
+if (is_empty(pdbnodiso3)) {
+  empty_models <- c(empty_models, "nodiso3")
+}
+if (!is_empty(pdbnodiso3) && is.character(pdbnodiso3)) {
+  writeLines(pdbnodiso3, con = paste0(OUTPATH, "/", CODE, "_nodiso3.pdb"))
+}
 
-writeLines(pdbnodiso3, con = paste0(OUTPATH, "/", CODE, "_nodiso3.pdb"))
+# Log empty cases
+if (length(empty_models) > 0) {
+  log_line <- paste0(CODE, "\t", paste(empty_models, collapse = ","), "\n")
+  write(log_line, file = paste0(OUTPATH, "/empty_models.txt"), append = TRUE)
+  message("Empty models for ", CODE, ": ", paste(empty_models, collapse = ", "))
+}
+
+# If ANY is empty → stop immediately
+if (length(empty_models) > 0) {
+  stop(
+    paste0(
+      "Empty nodiso output for ", CODE, ": ",
+      paste(empty_models, collapse = ", ")
+    )
+  )
+}
 
 ## 2- Write list info per residue -> nodiso info
 write.csv(data.all.diso, paste0(OUTPATH, "/", CODE, "_diso_info.csv"),
@@ -344,6 +379,7 @@ if (N_ct_int == 0) {
                           dimer_proba_con3 = 0, 
                           dimer_proba_pae4_con3 = 0, 
                           dimer_proba = 0)
+  final_score = 0
   
 } else if ((Nclash_ct_int/N_ct_int > 0.1) | (Nclash_res/nrow(pdb_dataframe_plddt)>0.05)) {
   print("The model presents too many clashes, cannot be a homomer.dimer_proba set to 0\n")
@@ -356,6 +392,7 @@ if (N_ct_int == 0) {
                           dimer_proba_con3 = 0, 
                           dimer_proba_pae4_con3 = 0, 
                           dimer_proba = 0)
+  final_score = 0
 } else {
   df_towrite = data.frame(PAE1 = PAE1,
                           PAE2 = PAE2,
@@ -366,10 +403,9 @@ if (N_ct_int == 0) {
                           dimer_proba_con3 = round(proba.con3,5), 
                           dimer_proba_pae4_con3 = round(proba.pae4.con3,5), 
                           dimer_proba = round(proba.all,5))
+  final_score = round(proba.all,5)
 }
 
-print(df_towrite)
-
-print(file.path(OUTPATH, paste0(CODE, "_probability_scores.csv")))
+cat("Final score:", final_score, "\n")
 write.csv(df_towrite, file.path(OUTPATH, paste0(CODE, "_probability_scores.csv")),
           quote = FALSE, row.names = FALSE)
