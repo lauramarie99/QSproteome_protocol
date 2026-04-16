@@ -1,5 +1,6 @@
 #!/bin/bash
-
+export LC_ALL=C
+export LANG=C
 # Path to the script
 SCRIPT=$(readlink -f $0)
 SCRIPTPATH=`dirname $SCRIPT`
@@ -105,6 +106,18 @@ then
         clashscore="NA"
 
         rmsd=$($ANANAS "$pdb" c$sym -C 100 | grep "Average RMSD" | awk '{ print $4 }')
+
+        if [[ "$rmsd" != "NA" && -n "$rmsd" ]]
+        then
+            rmsd_short=$(printf "%.3f" "$rmsd")
+            if [[ " ${listrmsd[*]} " =~ " ${rmsd_short} " ]]
+            then
+                echo c$sym $rmsd $clashscore >> $outfile
+                continue
+            else
+                listrmsd+=("$rmsd_short")
+            fi
+        fi
 
         if [ "$sym" -eq 13 ] || [ "$sym" -eq 14 ]; then
             rmsd_cutoff=2
